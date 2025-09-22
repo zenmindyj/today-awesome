@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const askQuestionBtn = document.getElementById('askQuestion');
     const queryResult = document.getElementById('queryResult');
     const answer = document.getElementById('answer');
+    const customConfirmModal = document.getElementById('customConfirm');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
 
     // --- Core Functions ---
 
@@ -131,12 +134,24 @@ document.addEventListener('DOMContentLoaded', function() {
         paginationContainer.innerHTML = paginationHTML;
     }
 
-    // Delete an entry (only available in user mode)
-    window.deleteEntry = async function(entryId) {
-        if (!confirm('确定要删除这条记录吗？此操作无法撤销。')) return;
-        
+    // --- Custom Confirmation Logic ---
+    let entryIdToDelete = null;
+
+    function showConfirmModal(entryId) {
+        entryIdToDelete = entryId;
+        customConfirmModal.style.display = 'flex';
+    }
+
+    function hideConfirmModal() {
+        entryIdToDelete = null;
+        customConfirmModal.style.display = 'none';
+    }
+
+    async function confirmDeletion() {
+        if (!entryIdToDelete) return;
+
         try {
-            const response = await fetch(`${apiPrefix}/entries/${entryId}`, { method: 'DELETE' });
+            const response = await fetch(`${apiPrefix}/entries/${entryIdToDelete}`, { method: 'DELETE' });
             if (response.ok) {
                 showMessage('记录删除成功', 'success');
                 window.loadEntries(currentPage);
@@ -146,7 +161,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             showMessage(`删除失败：${error.message}`, 'error');
+        } finally {
+            hideConfirmModal();
         }
+    }
+
+    // Replace the original deleteEntry with the modal trigger
+    window.deleteEntry = function(entryId) {
+        showConfirmModal(entryId);
     }
 
     // Show a temporary message
@@ -160,6 +182,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // --- Event Listeners ---
+    
+    // Modal buttons
+    confirmBtn.addEventListener('click', confirmDeletion);
+    cancelBtn.addEventListener('click', hideConfirmModal);
+
 
     // Add single entry
     entryForm.addEventListener('submit', async function(e) {
@@ -222,15 +249,61 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        function parseDateString(dateStr) {
+            dateStr = dateStr.trim().replace(/\//g, '-');
+            
+            // Matches YYYY-MM-DD or YYYY-M-D
+            const standardMatch = dateStr.match(/^(\d{4})[-](\d{1,2})[-](\d{1,2})$/);
+            if (standardMatch) {
+                const year = standardMatch[1];
+                const month = standardMatch[2].padStart(2, '0');
+                const day = standardMatch[3].padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+        
+            // Matches YYYY-MMDD (e.g., 2025-0921)
+            const shortMatch = dateStr.match(/^(\d{4})[-](\d{2})(\d{2})$/);
+            if (shortMatch) {
+                return `${shortMatch[1]}-${shortMatch[2]}-${shortMatch[3]}`;
+            }
+            
+            // Matches YYYYMMDD (e.g., 20250921)
+            const noSeparatorMatch = dateStr.match(/^(\d{4})(\d{2})(\d{2})$/);
+            if (noSeparatorMatch) {
+                return `${noSeparatorMatch[1]}-${noSeparatorMatch[2]}-${noSeparatorMatch[3]}`;
+            }
+        
+            return null; // Return null if no format matches
+        }
+        
         const lines = textContent.split('\n').filter(line => line.trim());
         const entries = lines.map(line => {
-            const parts = line.split(' | ');
-            if (parts.length === 2 && parts[0].match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/)) {
-                return { content: parts[1].trim(), entry_date: parts[0].trim().replace(/\//g, '-') };
-            } else if (parts.length === 2 && parts[1].match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/)) {
-                return { content: parts[0].trim(), entry_date: parts[1].trim().replace(/\//g, '-') };
+            const parts = line.split(/\s*[|｜]\s*/); // Handles both | and ｜ with optional spaces
+            if (parts.length !== 2) {
+                return { content: line.trim(), entry_date: null };
             }
-            return { content: line.trim(), entry_date: null };
+            
+            let dateStr = null;
+            let contentStr = '';
+        
+            // Check if first part is a date
+            let parsedDate = parseDateString(parts[0]);
+            if (parsedDate) {
+                dateStr = parsedDate;
+                contentStr = parts[1].trim();
+            } else {
+                // Check if second part is a date
+                parsedDate = parseDateString(parts[1]);
+                if (parsedDate) {
+                    dateStr = parsedDate;
+                    contentStr = parts[0].trim();
+                } else {
+                    // No date found, treat whole line as content
+                    contentStr = line.trim();
+                }
+            }
+            return { content: contentStr, entry_date: dateStr };
+
         }).filter(e => e.content);
         
         if (entries.length === 0) {

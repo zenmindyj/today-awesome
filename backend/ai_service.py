@@ -8,119 +8,77 @@ class AIService:
         zhipuai.api_key = self.api_key
         self.client = zhipuai.ZhipuAI(api_key=self.api_key)
     
-    async def generate_weekly_summary(self, entries):
-        if not entries:
-            return "本周还没有记录任何好棒的时刻，加油！"
+    async def generate_weekly_summary(self, stats):
+        if not stats or stats['total_entries'] == 0:
+            return "这个时间段内没有记录任何好棒的时刻，加油！"
         
-        # 统计分类数据
-        category_stats = {}
-        for entry in entries:
-            category = entry[2]  # 分类在第3列
-            if category not in category_stats:
-                category_stats[category] = []
-            category_stats[category].append(entry[1])  # 内容在第2列
-        
-        # 准备数据（仅用于AI分析，不输出给用户）
-        entries_text = "\n".join([f"- 内容：{entry[1]} | 分类：{entry[2]} | 日期：{entry[5]} | 时间：{entry[3]}" for entry in entries])
-        
-        # 生成分类统计文本
+        # --- Prepare data for the prompt ---
+
+        # 1. Overview Section
+        overview_text = f"""- 总条目数：{stats['total_entries']}
+- 每日平均条目数：{stats['avg_entries_per_day']}
+- 条目最多的一天：{stats['most_active_day']['date']}（{stats['most_active_day']['count']}条）
+- 条目最少的一天：{stats['least_active_day']['date']}（{stats['least_active_day']['count']}条）"""
+
+        # 2. Category Statistics Section
         category_summary = ""
-        for category, items in sorted(category_stats.items()):
-            category_summary += f"\n### {category}（{len(items)} 条）\n"
-            # 显示前3个代表性条目
-            for item in items[:3]:
-                category_summary += f"- {item}\n"
-            if len(items) > 3:
-                category_summary += f"- ... 等{len(items)}条\n"
-            category_summary += f"\n**特点分析**：请基于以上{len(items)}条{category}相关记录，分析该分类的主要特征、模式和个人特质。\n"
+        # Sort categories by count, descending
+        sorted_categories = sorted(stats['category_counts'].items(), key=lambda item: item[1], reverse=True)
         
+        for category, count in sorted_categories:
+            category_summary += f"\n### {category}（{count} 条）\n"
+            # Get examples for this category
+            examples = stats['category_examples'].get(category, [])
+            for item in examples:
+                category_summary += f"- {item}\n"
+            if count > len(examples):
+                category_summary += f"- ... 等{count}条\n"
+            
+            # Add a placeholder for the AI to fill in the analysis
+            category_summary += f"\n**特点分析**：请基于以上 {count} 条关于“{category}”的记录，分析其主要特征、模式和个人特质。\n"
+
+        # --- The New Prompt ---
         prompt = f"""
-你是一个专业的个人成长数据分析师。你收到了"今天好棒啊"记录数据，每条记录包含：内容、分类、日期、时间。
+你是一个专业的个人成长数据分析师。你正在为一个名为“今天好棒啊”的应用生成总结报告。
+你收到了由后端程序预先计算好的精确统计数据。你的任务是基于这些**事实**，生成一份结构清晰、分析深刻的报告。
 
-**数据概览**：
-- 总记录数：{len(entries)} 条
-- 时间范围：{entries[0][5] if entries else 'N/A'} 至 {entries[-1][5] if entries else 'N/A'}
+**[任务要求]**
+1.  **严格使用我提供的数据**：报告中的所有数字、日期和条目示例都必须直接来源于我提供的数据。**严禁自己进行任何计算或假设。**
+2.  **保持指定结构**：报告必须严格遵循“1. 总览”、“2. 分类统计”、“3. 深度分析”的结构。
+3.  **专注于分析**：你的核心价值在于“特点分析”和“深度分析”部分。要基于具体数据进行客观、有洞察力的分析，避免空话和套话。
+4.  **使用“你”而不是“该用户”**。
+5.  **严禁使用评价性语言**，如“看来”、“不错”、“很好”等。要用数据说话，例如：“数据显示你连续3天都记录了晨跑，说明运动频率较高”。
 
-**已确认的分类统计**（请严格按照以下分类，不要合并或重新分类）：
+---
+**[报告生成所需数据]**
+
+**时间范围**：{stats['start_date']} 至 {stats['end_date']}
+
+**1. 总览数据**
+{overview_text}
+
+**2. 分类统计数据**
 {category_summary}
 
-**任务要求**：
+**3. 深度分析所需原始条目 (仅供参考，不要在报告中逐条罗列)**
+{stats['raw_entries'][:20]} ... (只显示部分用于分析)
 
-1. **总览分析**：
-   - 计算总条目数、每日平均条目数
-   - 找出条目最多和最少的一天
+---
+**[请根据以上数据，生成最终报告]**
 
-2. **分类深度分析**：
-   **CRITICAL: 必须使用以下8个独立分类，绝对不要合并：**
-   - 学习（课程、技能、教育、研究等）
-   - 阅读（读书、听书、听播客等）  
-   - 工作（工作、项目、会议、编程等）
-   - 运动（运动、锻炼、健身、跑步等）
-   - 睡眠（睡觉、休息、午睡等）
-   - 饮食（食物、饮料、水果、蔬菜等）
-   - 生活（日常购物、家务、生活用品等）
-   - 其他（不属于以上分类的内容）
+请严格按照以下 Markdown 格式输出：
 
-3. **深度分析**：
-   **这部分要基于具体数据进行客观分析，避免评价性语言和套话。要求：**
-   - 分析哪个分类条数最多，具体说明了什么
-   - 发现各分类之间的关联性和模式
-   - 识别时间分布规律和个人特质
-   - 基于具体记录内容，用数据说话
-   - 用客观、中性的语言进行分析
-   - 可以提到具体的模式或发现
-   - 用"你"而不是"该用户"
-   - **严禁使用所有套话模板（见下方清单）**
-   - **严禁使用评价性语言，如"看来"、"不错"、"很好"等**
-   - 要具体，比如"你这周连续3天都记录了晨跑，说明运动频率较高"
-
-**重要：对于每个分类的"特点分析"，请提供具体、有深度的洞察，而不是泛泛而谈。例如：**
-- 不要只说"饮食记录反映了你的饮食习惯，注重健康和美味"
-- 而要分析：具体喜欢什么类型的食物、购买频率、是否有季节性偏好、健康意识如何体现等
-- 基于具体记录内容，发现独特的个人模式
-
-**严禁使用的套话模板：**
-- "希望你在未来的日子里，继续保持这种积极向上的生活态度，不断追求进步和成长"
-- "展现出对自身健康的重视"
-- "注重健康生活，坚持运动和健康饮食"
-- "善于观察生活细节，善于调整和尝试，具有积极的生活态度"
-- "不断追求进步和突破"
-- "多元化兴趣"
-- "积极向上的生活态度"
-- "注重个人成长和知识积累"
-- "善于将工作与生活相结合"
-- "关注健康，注重休息和锻炼"
-- "积极主动、乐观向上"
-- "通过学习、阅读、思考和锻炼，不断提升自己"
-- "追求知识，并保持健康的生活方式"
-- "积极态度和高效能力"
-- "相信你会越来越好"
-- "继续保持这种状态"
-- "你一定会越来越好"
-- "看来"、"不错"、"很好"、"很棒"、"优秀"等评价性词汇
-
-**要求：**
-- 用"你"而不是"该用户"
-- 基于具体记录内容进行分析
-- 发现独特的个人模式和行为特点
-- 用具体事实说话，避免空洞的赞美
-- **不要输出原始数据，只用于分析**
-
-**输出格式**：
-
-## 🗓 「今天好棒啊」总结（{entries[0][5] if entries else 'N/A'} 至 {entries[-1][5] if entries else 'N/A'}）
+## 🗓 「今天好棒啊」总结（{stats['start_date']} 至 {stats['end_date']}）
 
 ### 1. 总览
-- 总条目数：{len(entries)}
-- 每日平均条目数：{len(entries)/7:.1f}
-- 条目最多的一天：
-- 条目最少的一天：
+{overview_text}
 
 ### 2. 分类统计
 {category_summary}
 
 ### 3. 深度分析
-基于以上数据的具体分析和个人特质发现
+请基于以上所有数据，撰写一段综合性的深度分析，发现独特的个人模式和行为特点。
+
 """
         
         try:
@@ -239,7 +197,7 @@ class AIService:
         content_lower = content.lower()
         
         # 运动相关关键词（优先匹配）
-        exercise_keywords = ['运动', '锻炼', '跑步', '健身', '瑜伽', '晨间运动', '锻炼身体', '健身操', '游泳', '骑车', '爬山', '散步', '慢跑', '快走', '举重', '拉伸', '有氧', '无氧', '训练', '练习', '走', '走了', '走了一大圈', '走路', '步行', '徒步', '远足', '骑行', '骑自行车']
+        exercise_keywords = ['运动', '锻炼', '跑步', '健身', '瑜伽', '晨间运动', '锻炼身体', '健身操', '游泳', '骑车', '爬山', '散步', '慢跑', '快走', '举重', '拉伸', '有氧', '无氧', '训练', '走', '走了', '走了一大圈', '走路', '步行', '徒步', '远足', '骑行', '骑自行车']
         if any(keyword in content for keyword in exercise_keywords):
             return "运动"
         

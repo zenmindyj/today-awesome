@@ -91,7 +91,7 @@ async def get_user_entries(page: int = 1, per_page: int = 25):
         raise HTTPException(status_code=500, detail=str(e))
 
 @user_router.delete("/entries/{entry_id}")
-async def delete_user_entry(entry_id: int):
+async def delete_user_entry(entry_id: str):
     try:
         success = db_user.delete_entry(entry_id)
         if success:
@@ -104,12 +104,22 @@ async def delete_user_entry(entry_id: int):
 @user_router.post("/summary")
 async def get_user_summary(request: SummaryRequest):
     try:
-        entries = db_user.get_entries_by_date_range(request.start_date, request.end_date)
-        time_range_name = f"{request.start_date} 至 {request.end_date}"
-        if not entries:
+        # Step 1: Get precise statistics from the database
+        statistics = db_user.get_statistics_by_date_range(request.start_date, request.end_date)
+        
+        # Step 2: Handle case where there's no data
+        if not statistics:
+            time_range_name = f"{request.start_date} 至 {request.end_date}"
             return {"summary": f"在 {time_range_name} 期间您还没有记录任何好棒的时刻。"}
-        summary = await ai_service.generate_weekly_summary(entries)
-        return {"summary": summary, "entries_count": len(entries), "time_range": time_range_name}
+
+        # Step 3: Pass the accurate statistics to the AI for analysis
+        summary_text = await ai_service.generate_weekly_summary(statistics)
+        
+        return {
+            "summary": summary_text, 
+            "entries_count": statistics['total_entries'], 
+            "time_range": f"{statistics['start_date']} 至 {statistics['end_date']}"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -190,12 +200,22 @@ async def get_demo_entries(page: int = 1, per_page: int = 25):
 @demo_router.post("/summary")
 async def get_demo_summary(request: SummaryRequest):
     try:
-        entries = db_demo.get_entries_by_date_range(request.start_date, request.end_date)
-        time_range_name = f"{request.start_date} 至 {request.end_date}"
-        if not entries:
+        # Step 1: Get precise statistics from the database
+        statistics = db_demo.get_statistics_by_date_range(request.start_date, request.end_date)
+        
+        # Step 2: Handle case where there's no data
+        if not statistics:
+            time_range_name = f"{request.start_date} 至 {request.end_date}"
             return {"summary": f"在 {time_range_name} 期间没有演示数据。"}
-        summary = await ai_service.generate_weekly_summary(entries)
-        return {"summary": summary, "entries_count": len(entries), "time_range": time_range_name}
+
+        # Step 3: Pass the accurate statistics to the AI for analysis
+        summary_text = await ai_service.generate_weekly_summary(statistics)
+
+        return {
+            "summary": summary_text, 
+            "entries_count": statistics['total_entries'], 
+            "time_range": f"{statistics['start_date']} 至 {statistics['end_date']}"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -219,7 +239,7 @@ async def smart_demo_query(query: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @demo_router.delete("/entries/{entry_id}")
-async def delete_demo_entry(entry_id: int):
+async def delete_demo_entry(entry_id: str):
     try:
         success = db_demo.delete_entry(entry_id)
         if success:

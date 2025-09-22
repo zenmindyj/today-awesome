@@ -110,6 +110,18 @@ class Database:
         conn.close()
         return entries
     
+    def get_entries(self, limit=None):
+        """获取所有条目，按日期和创建时间排序"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        query = "SELECT * FROM entries ORDER BY entry_date DESC, created_at DESC"
+        if limit:
+            query += f" LIMIT {limit}"
+        cursor.execute(query)
+        entries = cursor.fetchall()
+        conn.close()
+        return entries
+
     def get_entries_by_date_range(self, start_date, end_date):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
