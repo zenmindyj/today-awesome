@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今天好棒啊</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-mode="user">
+    <div class="container">
+            <div class="top-banner">
+                <span class="app-title">用户模式</span>
+                <a href="/demo" class="mode-indicator">演示模式</a>
+            </div>
+        <header>
+            <h1>今天好棒啊 🌟</h1>
+            <p>记录每天的好棒时刻，回顾生活中的小确幸</p>
+        </header>
+
+        <main>
+            <!-- 添加条目 -->
+            <section class="add-section">
+                <h2>添加好棒时刻</h2>
+                <form id="entryForm">
+                    <textarea id="content" placeholder="今天做了什么让你觉得好棒的事情？AI会自动为您分类和总结" required></textarea>
+                    <button type="submit">添加</button>
+                </form>
+            </section>
+            
+            <!-- 条目列表 -->
+            <section class="entries-section">
+                <h2>最近的好棒时刻</h2>
+                <div id="entriesList"></div>
+                <!-- 分页控件 -->
+                <div id="paginationContainer" class="pagination-container">
+                    <!-- 分页按钮将在这里动态生成 -->
+                </div>
+            </section>
+            
+            <!-- 批量导入 -->
+            <section class="batch-import-section">
+                <h2>批量导入</h2>
+                <div class="text-import-section">
+                    <h3>使用文本批量输入</h3>
+                    <p>在下方文本框中输入多条记录，每行一条，支持以下格式：</p>
+                    <ul>
+                        <li>每行一条记录（自动使用当前日期）</li>
+                        <li>格式：记录内容 | 日期（如：今天很充实 | 2025-09-10）</li>
+                        <li>格式：日期 | 记录内容（如：2025-09-10 | 今天很充实）</li>
+                    </ul>
+                    <textarea id="textImportInput" placeholder="例如：
+今天完成了重要项目
+学习了新的编程技术 | 2025-09-10
+2025-09-11 | 和朋友度过了愉快时光
+坚持了30分钟晨跑
+读了一本有启发的书"></textarea>
+                    <button id="textImportBtn">批量添加文本记录</button>
+                </div>
+            </section>
+            
+            <!-- 智能查询 -->
+            <section class="query-section">
+                <h2>智能查询</h2>
+                <p>问AI关于您好棒时刻的任何问题（支持查询所有历史数据）</p>
+                <div class="query-controls">
+                    <input type="text" id="queryInput" placeholder="例如：9月份我吃了哪些水果？我看了哪些书？晨间运动了几次？">
+                    <button id="askQuestion">询问AI</button>
+                </div>
+                <div id="queryResult" class="query-result">
+                    <div id="answer"></div>
+                </div>
+            </section>
+            
+            <!-- 智能总结 -->
+            <section class="summary-section">
+                <h2>智能总结</h2>
+                <div class="summary-controls">
+                    <div class="time-range-selector">
+                        <label>时间范围：</label>
+                        <select id="timeRangeSelect">
+                            <option value="custom">自定义时间</option>
+                        </select>
+                    </div>
+                    <div class="custom-date-range" id="customDateRange" style="display: none;">
+                        <label>开始日期：</label>
+                        <input type="date" id="summaryStartDate">
+                        <label>结束日期：</label>
+                        <input type="date" id="summaryEndDate">
+                    </div>
+                    <button id="generateSummary">生成 AI 总结</button>
+                </div>
+                <div id="summaryContent"></div>
+            </section>
+            
+        </main>
+    </div>
+    
+    <!-- Markdown渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
